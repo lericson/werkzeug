@@ -421,7 +421,7 @@ def reloader_named(name):
 def _reloader_stat_loop(iter_fnames, interval=1):
     mtimes = {}
     while 1:
-        for filename in fnames:
+        for filename in iter_fnames():
             try:
                 mtime = os.stat(filename).st_mtime
             except OSError:
@@ -453,8 +453,11 @@ def _reloader_inotify(iter_fnames, interval=None):
         _log('info', ' * Detected change in %r, reloading' % event.path)
         changed[:] = [True]
 
+    watch_fname = lambda fn: wm.add_watch(fname, mask, signal_changed)
+
+    fnames = set(iter_fnames())
     for fname in fnames:
-        wm.add_watch(fname, mask, signal_changed)
+        watch_fname(fname)
 
     # ... And now we wait...
     notif = Notifier(wm)
@@ -463,7 +466,11 @@ def _reloader_inotify(iter_fnames, interval=None):
             notif.process_events()
             if notif.check_events(timeout=interval):
                 notif.read_events()
-            # TODO Set timeout to something small and check parent liveliness
+            # Take note to watch files that are imported mid-process.
+            new_fnames = fnames ^ set(iter_fnames())
+            for fname in new_fnames:
+                watch_fname(fname)
+            fnames.update(new_fnames)
     finally:
         notif.stop()
     sys.exit(3)
