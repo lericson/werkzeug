@@ -408,9 +408,17 @@ def reloader_loop(extra_files=None, interval=1):
     fnames.extend(iter_module_files())
     fnames.extend(extra_files or ())
 
-    reloader(fnames, interval=interval)
+    reloader = get_reloader()
+    reloader(iter_fnames, interval=interval)
 
-def _reloader_stat_loop(fnames, interval=1):
+def reloader_named(name):
+    def deco(f):
+        f.reloader_name = name
+        return f
+    return deco
+
+@reloader_named("stat() loop")
+def _reloader_stat_loop(iter_fnames, interval=1):
     mtimes = {}
     while 1:
         for filename in fnames:
@@ -428,7 +436,8 @@ def _reloader_stat_loop(fnames, interval=1):
                 sys.exit(3)
         time.sleep(interval)
 
-def _reloader_inotify(fnames, interval=None):
+@reloader_named("inotify callback")
+def _reloader_inotify(iter_fnames, interval=None):
     #: Mutated by inotify loop when changes occur.
     changed = [False]
 
@@ -459,23 +468,24 @@ def _reloader_inotify(fnames, interval=None):
         notif.stop()
     sys.exit(3)
 
-# Decide which reloader to use
-try:
-    __import__("pyinotify")   # Pyflakes-avoidant
-except ImportError:
+def get_reloader():
+    """Lazily decide which reloading method to use."""
     reloader = _reloader_stat_loop
-    reloader_name = "stat() polling"
-else:
-    reloader = _reloader_inotify
-    reloader_name = "inotify events"
-
+    try:
+        __import__("pyinotify")   # Pyflakes-avoidant
+    except ImportError:
+        pass
+    else:
+        reloader = _reloader_inotify
+    return reloader
 
 def restart_with_reloader():
     """Spawn a new Python interpreter with the same arguments as this one,
     but running the reloader thread.
     """
+    reloader = get_reloader()
     while 1:
-        _log('info', ' * Restarting with reloader: %s', reloader_name)
+        _log('info', ' * Restarting with reloader: %s', reloader.reloader_name)
         args = [sys.executable] + sys.argv
         new_environ = os.environ.copy()
         new_environ['WERKZEUG_RUN_MAIN'] = 'true'
