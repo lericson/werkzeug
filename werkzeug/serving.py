@@ -404,9 +404,11 @@ def reloader_loop(extra_files=None, interval=1):
                         filename = filename[:-1]
                     yield filename
 
-    fnames = []
-    fnames.extend(iter_module_files())
-    fnames.extend(extra_files or ())
+    def iter_fnames():
+        fnames = []
+        fnames.extend(iter_module_files())
+        fnames.extend(extra_files or ())
+        return iter(fnames)
 
     reloader = get_reloader()
     reloader(iter_fnames, interval=interval)
