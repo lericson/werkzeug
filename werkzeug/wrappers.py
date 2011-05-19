@@ -482,6 +482,11 @@ class BaseRequest(object):
         protected, this attribute contains the username the user has
         authenticated as.''')
 
+    scheme = environ_property('wsgi.url_scheme', doc='''
+        URL scheme (http or https).
+
+        .. versionadded:: 0.7''')
+
     is_xhr = property(lambda x: x.environ.get('HTTP_X_REQUESTED_WITH', '')
                       .lower() == 'xmlhttprequest', doc='''
         True if the request was triggered via a JavaScript XMLHttpRequest.
@@ -627,11 +632,14 @@ class BaseResponse(object):
 
     def call_on_close(self, func):
         """Adds a function to the internal list of functions that should
-        be called as part of closing down the response.
+        be called as part of closing down the response.  Since 0.7 this
+        function also returns the function that was passed so that this
+        can be used as a decorator.
 
         .. versionadded:: 0.6
         """
         self._on_close.append(func)
+        return func
 
     def __repr__(self):
         if self.is_sequence:

@@ -1287,9 +1287,6 @@ class MapAdapter(object):
         if not isinstance(path_info, unicode):
             path_info = path_info.decode(self.map.charset,
                                          self.map.encoding_errors)
-        if '?' in path_info:
-            path_info, query_args = path_info.split('?')
-            query_args = url_decode(query_args, self.map.charset)
         if query_args is None:
             query_args = self.query_args
         method = (method or self.default_method).upper()
@@ -1313,7 +1310,7 @@ class MapAdapter(object):
                         rv.update(r.defaults)
                         subdomain, path = r.build(rv)
                         raise RequestRedirect(self.make_redirect_url(
-                            path_info, query_args))
+                            path, query_args, subdomain=subdomain))
             if rule.redirect_to is not None:
                 if isinstance(rule.redirect_to, basestring):
                     def _handle_match(match):
@@ -1350,7 +1347,7 @@ class MapAdapter(object):
             self.match(path_info, method)
         except RequestRedirect:
             pass
-        except (NotFound, MethodNotAllowed):
+        except HTTPException:
             return False
         return True
 
@@ -1367,14 +1364,16 @@ class MapAdapter(object):
             pass
         return []
 
-    def make_redirect_url(self, path_info, query_args=None):
+    def make_redirect_url(self, path_info, query_args=None, subdomain=None):
         """Creates a redirect URL."""
         suffix = ''
         if query_args:
             suffix = '?' + url_encode(query_args, self.map.charset)
+        if subdomain is None:
+            subdomain = self.subdomain
         return str('%s://%s%s/%s%s' % (
             self.url_scheme,
-            self.subdomain and self.subdomain + '.' or '',
+            subdomain and subdomain + '.' or '',
             self.server_name,
             posixpath.join(self.script_name[:-1].lstrip('/'),
                            url_quote(path_info.lstrip('/'), self.map.charset)),

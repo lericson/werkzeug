@@ -51,15 +51,6 @@ def test_basic_routing():
 
     adapter = map.bind('example.org', '/')
     try:
-        adapter.match('/bar?aha=muhaha')
-    except RequestRedirect, e:
-        print e.new_url
-        assert e.new_url == 'http://example.org/bar/?aha=muhaha'
-    else:
-        assert False
-
-    adapter = map.bind('example.org', '/')
-    try:
         adapter.match('/bar', query_args={'aha': 'muhaha'})
     except RequestRedirect, e:
         print e.new_url
@@ -247,10 +238,34 @@ def test_request_direct_charset_bug():
     try:
         adapter.match(u'/öäü')
     except RequestRedirect, e:
-        print repr(e.new_url)
         assert e.new_url == 'http://localhost/%C3%B6%C3%A4%C3%BC/'
     else:
         raise AssertionError('expected request redirect exception')
+
+
+def test_request_redirect_default():
+    map = Map([Rule(u'/foo', defaults={'bar': 42}),
+               Rule(u'/foo/<int:bar>')])
+    adapter = map.bind('localhost', '/')
+    try:
+        adapter.match(u'/foo/42')
+    except RequestRedirect, e:
+        assert e.new_url == 'http://localhost/foo'
+    else:
+        raise AssertionError('expected request redirect exception')
+
+
+def test_request_redirect_default_subdomain():
+    map = Map([Rule(u'/foo', defaults={'bar': 42}, subdomain='test'),
+               Rule(u'/foo/<int:bar>', subdomain='other')])
+    adapter = map.bind('localhost', '/', subdomain='other')
+    try:
+        adapter.match(u'/foo/42')
+    except RequestRedirect, e:
+        assert e.new_url == 'http://test.localhost/foo'
+    else:
+        raise AssertionError('expected request redirect exception')
+
 
 def test_adapter_match_return_rule():
     """Returning the matched Rule"""

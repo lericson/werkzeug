@@ -2275,12 +2275,50 @@ class FileStorage(object):
                  headers=None):
         self.name = name
         self.stream = stream or _empty_stream
-        self.filename = filename or getattr(stream, 'name', None)
+
+        # if no filename is provided we can attempt to get the filename
+        # from the stream object passed.  There we have to be careful to
+        # skip things like <fdopen>, <stderr> etc.  Python marks these
+        # special filenames with angular brackets.
+        if filename is None:
+            filename = getattr(stream, 'name', None)
+            if filename and filename[0] == '<' and filename[-1] == '>':
+                filename = None
+
+        self.filename = filename
         self.content_type = content_type
         self.content_length = content_length
         if headers is None:
             headers = Headers()
         self.headers = headers
+
+    def _parse_content_type(self):
+        if not hasattr(self, '_parsed_content_type'):
+            self._parsed_content_type = \
+                parse_options_header(self.content_type)
+
+    @property
+    def mimetype(self):
+        """Like :attr:`content_type` but without parameters (eg, without
+        charset, type etc.).  For example if the content
+        type is ``text/html; charset=utf-8`` the mimetype would be
+        ``'text/html'``.
+
+        .. versionadded:: 0.7
+        """
+        self._parse_content_type()
+        return self._parsed_content_type[0]
+
+    @property
+    def mimetype_params(self):
+        """The mimetype parameters as dict.  For example if the content
+        type is ``text/html; charset=utf-8`` the params would be
+        ``{'charset': 'utf-8'}``.
+
+        .. versionadded:: 0.7
+        """
+        self._parse_content_type()
+        return self._parsed_content_type[1]
 
     def save(self, dst, buffer_size=16384):
         """Save the file to a destination path or file object.  If the
@@ -2333,7 +2371,8 @@ class FileStorage(object):
 
 # circular dependencies
 from werkzeug.http import dump_options_header, dump_header, generate_etag, \
-     quote_header_value, parse_set_header, unquote_etag
+     quote_header_value, parse_set_header, unquote_etag, \
+     parse_options_header
 
 
 # create all the special key errors now that the classes are defined.
